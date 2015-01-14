@@ -469,14 +469,14 @@ int CTIandSIDlg::TIandSI(YUVInfo yuvinfo,LPVOID lparam)
 			for(m = 1; m < (nHeight - 1); m++)
 				for(n = 1; n < (nWidth - 1); n++)
 				{
-					flSI_A = flSI_A + NewSIBuffer[m*nHeight + n];
+					flSI_A = flSI_A + NewSIBuffer[m*nWidth + n];
 				}
 			flSI_A = flSI_A/((nWidth - 2)*(nHeight - 2));
 
 			for(m = 1; m < (nHeight - 1); m++)
 				for(n = 1; n < (nWidth - 1); n++)
 				{
-					flSI_S = flSI_S + pow((NewSIBuffer[m*nHeight+n]-flSI_A), 2);
+					flSI_S = flSI_S + pow((NewSIBuffer[m*nWidth+n]-flSI_A), 2);
 				}
 			flSI_S = sqrt(flSI_S/((nWidth - 2)*(nHeight - 2) - 1));
 			//Êä³öSI
