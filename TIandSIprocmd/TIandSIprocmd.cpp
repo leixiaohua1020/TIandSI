@@ -454,142 +454,141 @@ int main(int argc, char* argv[])
 			audio_stream=i;
 		}
 	}
-	if(video_stream==-1)
-	{
-		printf("Didn't find a video stream.\n");
+	if(video_stream==-1){
+		printf("Could not find a video stream.\n");
 		return FALSE;
 	}
-	if(video_stream!=-1){
+	
 
-		pCodecCtx=pFormatCtx->streams[video_stream]->codec;
-		pCodec=avcodec_find_decoder(pCodecCtx->codec_id);
-		if(pCodec==NULL)
-		{
-			printf("Codec not found.\n");
-			return FALSE;
-		}
-		if(avcodec_open2(pCodecCtx, pCodec,NULL)<0)
-		{
-			printf("Could not open codec.\n");
-			return FALSE;
-		}
-
-		//------------SDL----------------
-		SDLParam sdlparam={NULL,NULL,{0,0,0,0},graphically_ti,graphically_si,isinterval,NULL,NULL,0,0,0,0};
-		if(graphically_ti==true||graphically_si==true){
-			sdlparam.graphically_si=graphically_si;
-			sdlparam.graphically_ti=graphically_ti;
-			sdlparam.show_w=pCodecCtx->width;
-			sdlparam.show_h=pCodecCtx->height;
-			sdlparam.pixel_w=pCodecCtx->width;
-			sdlparam.pixel_h=pCodecCtx->height;
-			//FIX
-			sdlparam.show_YBuffer=(char *)malloc(sdlparam.pixel_w*sdlparam.pixel_h);
-			sdlparam.show_UVBuffer=(char *)malloc(sdlparam.pixel_w*sdlparam.pixel_h/2);
-			memset(sdlparam.show_UVBuffer,0x80,sdlparam.pixel_w*sdlparam.pixel_h/2);
-
-			SDL_Thread *video_tid = SDL_CreateThread(show_thread,&sdlparam);
-		}
-		//---------------
-
-		//vtype=VE_TIL_SIL;
-		std::vector<float> silist;
-		std::vector<float> tilist;
-
-		AVFrame	*pFrame,*pFrameYUV;
-		pFrame=avcodec_alloc_frame();
-		pFrameYUV=avcodec_alloc_frame();
-		uint8_t *out_buffer;
-		out_buffer=(uint8_t *)av_malloc(avpicture_get_size(PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height));
-		avpicture_fill((AVPicture *)pFrameYUV, out_buffer, PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height);
-
-		int ret, got_picture;
-		static struct SwsContext *img_convert_ctx;
-		int y_size = pCodecCtx->width * pCodecCtx->height;
-
-		AVPacket *packet=(AVPacket *)av_malloc(sizeof(AVPacket));
-		av_new_packet(packet, y_size);
-		//计算TI的时候使用
-		int prev_has=0;
-		uint8_t *prev_ydata=(uint8_t *)av_malloc(pCodecCtx->width*pCodecCtx->height);
-
-		img_convert_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt, pCodecCtx->width, pCodecCtx->height, PIX_FMT_YUV420P, SWS_BILINEAR, NULL, NULL, NULL); 
-		//打开文件
-		FILE *fp=fopen(out_url,"wb+");
-		fprintf(fp,"TI,SI\n");
-		//记个数
-		int framecnt=0;
-		while(av_read_frame(pFormatCtx, packet)>=0&&(framecnt<limit_num||!limit_is))
-		{
-			if(packet->stream_index==video_stream)
-			{
-				ret = avcodec_decode_video2(pCodecCtx, pFrame, &got_picture, packet);
-				if(ret < 0)
-				{
-					printf("Decode Error.\n");
-					return -1;
-				}
-				if(got_picture)
-				{
-					sws_scale(img_convert_ctx, (const uint8_t* const*)pFrame->data, pFrame->linesize, 0, pCodecCtx->height, pFrameYUV->data, pFrameYUV->linesize);
-					//有前面的帧，才能计算TI
-					if(prev_has==1){
-						if(framecnt%intervalcnt==0){
-							sdlparam.isinterval=false;
-						}else{
-							sdlparam.isinterval=true;
-						}
-						float ti=0,si=0;
-						int retval=tisip_TISI((char *)pFrameYUV->data[0],(char *)prev_ydata,pCodecCtx->width,pCodecCtx->height,sdlparam,ti,si);
-						if(retval==-1)
-							break;
-
-						tilist.push_back(ti);
-						silist.push_back(si);
-						printf("%f,%f\n",ti,si);
-						fprintf(fp,"%f,%f\n",ti,si);
-						framecnt++;
-					}else{
-						prev_has=1;
-					}
-					//拷贝亮度数据
-					memcpy(prev_ydata,pFrameYUV->data[0],pCodecCtx->width*pCodecCtx->height);
-				}
-			}
-			av_free_packet(packet);
-		}
-		sws_freeContext(img_convert_ctx);
-		//计算平均值
-		int num=0;
-		float sum=0;
-		num=silist.size();
-		for (int i=0;i<num;i++)
-			sum +=silist[i];
-		float siavg=sum/num;
-		num=0;
-		sum=0;
-		num=tilist.size();
-		for (int i=0;i<num;i++)
-			sum +=tilist[i];
-		float tiavg=sum/num;
-
-		fprintf(fp,"TI_AVG,SI_AVG\n");
-		fprintf(fp,"%f,%f\n",tiavg,siavg);
-		fclose(fp);
-
-		av_free(out_buffer);
-		av_free(pFrameYUV);
-		avcodec_close(pCodecCtx);
-
-		if(graphically_ti==true||graphically_si==true){
-			free(sdlparam.show_YBuffer);
-			free(sdlparam.show_UVBuffer);
-			SDL_Event event;
-			event.type=SDL_QUIT;
-			SDL_PushEvent(&event);
-		}
-
+	pCodecCtx=pFormatCtx->streams[video_stream]->codec;
+	pCodec=avcodec_find_decoder(pCodecCtx->codec_id);
+	if(pCodec==NULL)
+	{
+		printf("Codec not found.\n");
+		return FALSE;
 	}
+	if(avcodec_open2(pCodecCtx, pCodec,NULL)<0)
+	{
+		printf("Could not open codec.\n");
+		return FALSE;
+	}
+
+	//------------SDL----------------
+	SDLParam sdlparam={NULL,NULL,{0,0,0,0},graphically_ti,graphically_si,isinterval,NULL,NULL,0,0,0,0};
+	if(graphically_ti==true||graphically_si==true){
+		sdlparam.graphically_si=graphically_si;
+		sdlparam.graphically_ti=graphically_ti;
+		sdlparam.show_w=pCodecCtx->width;
+		sdlparam.show_h=pCodecCtx->height;
+		sdlparam.pixel_w=pCodecCtx->width;
+		sdlparam.pixel_h=pCodecCtx->height;
+		//FIX
+		sdlparam.show_YBuffer=(char *)malloc(sdlparam.pixel_w*sdlparam.pixel_h);
+		sdlparam.show_UVBuffer=(char *)malloc(sdlparam.pixel_w*sdlparam.pixel_h/2);
+		memset(sdlparam.show_UVBuffer,0x80,sdlparam.pixel_w*sdlparam.pixel_h/2);
+
+		SDL_Thread *video_tid = SDL_CreateThread(show_thread,&sdlparam);
+	}
+	//---------------
+
+	//vtype=VE_TIL_SIL;
+	std::vector<float> silist;
+	std::vector<float> tilist;
+
+	AVFrame	*pFrame,*pFrameYUV;
+	pFrame=avcodec_alloc_frame();
+	pFrameYUV=avcodec_alloc_frame();
+	uint8_t *out_buffer;
+	out_buffer=(uint8_t *)av_malloc(avpicture_get_size(PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height));
+	avpicture_fill((AVPicture *)pFrameYUV, out_buffer, PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height);
+
+	int ret, got_picture;
+	static struct SwsContext *img_convert_ctx;
+	int y_size = pCodecCtx->width * pCodecCtx->height;
+
+	AVPacket *packet=(AVPacket *)av_malloc(sizeof(AVPacket));
+	av_new_packet(packet, y_size);
+	//计算TI的时候使用
+	int prev_has=0;
+	uint8_t *prev_ydata=(uint8_t *)av_malloc(pCodecCtx->width*pCodecCtx->height);
+
+	img_convert_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt, pCodecCtx->width, pCodecCtx->height, PIX_FMT_YUV420P, SWS_BILINEAR, NULL, NULL, NULL); 
+	//打开文件
+	FILE *fp=fopen(out_url,"wb+");
+	fprintf(fp,"TI,SI\n");
+	//记个数
+	int framecnt=0;
+	while(av_read_frame(pFormatCtx, packet)>=0&&(framecnt<limit_num||!limit_is))
+	{
+		if(packet->stream_index==video_stream)
+		{
+			ret = avcodec_decode_video2(pCodecCtx, pFrame, &got_picture, packet);
+			if(ret < 0)
+			{
+				printf("Decode Error.\n");
+				return -1;
+			}
+			if(got_picture)
+			{
+				sws_scale(img_convert_ctx, (const uint8_t* const*)pFrame->data, pFrame->linesize, 0, pCodecCtx->height, pFrameYUV->data, pFrameYUV->linesize);
+				//有前面的帧，才能计算TI
+				if(prev_has==1){
+					if(framecnt%intervalcnt==0){
+						sdlparam.isinterval=false;
+					}else{
+						sdlparam.isinterval=true;
+					}
+					float ti=0,si=0;
+					int retval=tisip_TISI((char *)pFrameYUV->data[0],(char *)prev_ydata,pCodecCtx->width,pCodecCtx->height,sdlparam,ti,si);
+					if(retval==-1)
+						break;
+
+					tilist.push_back(ti);
+					silist.push_back(si);
+					printf("%f,%f\n",ti,si);
+					fprintf(fp,"%f,%f\n",ti,si);
+					framecnt++;
+				}else{
+					prev_has=1;
+				}
+				//拷贝亮度数据
+				memcpy(prev_ydata,pFrameYUV->data[0],pCodecCtx->width*pCodecCtx->height);
+			}
+		}
+		av_free_packet(packet);
+	}
+	sws_freeContext(img_convert_ctx);
+	//计算平均值
+	int num=0;
+	float sum=0;
+	num=silist.size();
+	for (int i=0;i<num;i++)
+		sum +=silist[i];
+	float siavg=sum/num;
+	num=0;
+	sum=0;
+	num=tilist.size();
+	for (int i=0;i<num;i++)
+		sum +=tilist[i];
+	float tiavg=sum/num;
+
+	fprintf(fp,"TI_AVG,SI_AVG\n");
+	fprintf(fp,"%f,%f\n",tiavg,siavg);
+	fclose(fp);
+
+	av_free(out_buffer);
+	av_free(pFrameYUV);
+	avcodec_close(pCodecCtx);
+
+	if(graphically_ti==true||graphically_si==true){
+		free(sdlparam.show_YBuffer);
+		free(sdlparam.show_UVBuffer);
+		SDL_Event event;
+		event.type=SDL_QUIT;
+		SDL_PushEvent(&event);
+	}
+
+
 	avformat_close_input(&pFormatCtx);
 	return 0;
 }
